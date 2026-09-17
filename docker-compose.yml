@@ -1,0 +1,101 @@
+# ==============================================================================
+# Your hospital data (raw/staging/analytics schemas) lives in the PostgreSQL
+# you already have installed on your laptop — that is NOT started here.
+#
+# This file only starts the tools that genuinely benefit from running in
+# containers:
+#   - postgres-airflow : Airflow's OWN internal metadata DB (task history, etc.)
+#                         This is NOT your hospital data.
+#   - airflow-init      : one-off container that sets up Airflow the first time
+#   - airflow-webserver : Airflow UI at http://localhost:8080
+#   - airflow-scheduler : runs the DAG on schedule
+#   - streamlit         : your dashboard at http://localhost:8501
+#
+# Both airflow and streamlit reach your LOCAL Postgres via host.docker.internal
+# (see .env). On Linux, extra_hosts below makes that hostname work too.
+# ==============================================================================
+
+x-airflow-common: &airflow-common
+  image: apache/airflow:2.9.1-python3.11
+  environment:
+    AIRFLOW__CORE__EXECUTOR: LocalExecutor
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${AIRFLOW_PG_USER}:${AIRFLOW_PG_PASSWORD}@postgres-airflow/${AIRFLOW_PG_DB}
+    AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+    AIRFLOW__API__AUTH_BACKENDS: airflow.api.auth.backend.basic_auth
+    # These let the DAG's BashOperator tasks call your src/*.py scripts:
+    PG_HOST: ${PG_HOST}
+    PG_PORT: ${PG_PORT}
+    PG_DB: ${PG_DB}
+    PG_USER: ${PG_USER}
+    PG_PASSWORD: ${PG_PASSWORD}
+    PYTHONPATH: /opt/airflow/src
+  volumes:
+    - ./dags:/opt/airflow/dags
+    - ./src:/opt/airflow/src
+    - ./data:/opt/airflow/data
+    - ./logs:/opt/airflow/logs
+    - ./requirements.txt:/requirements.txt
+  extra_hosts:
+    - "host.docker.internal:host-gateway"   # makes host.docker.internal work on Linux too
+  depends_on:
+    postgres-airflow:
+      condition: service_healthy
+
+services:
+  postgres-airflow:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: ${AIRFLOW_PG_USER}
+      POSTGRES_PASSWORD: ${AIRFLOW_PG_PASSWORD}
+      POSTGRES_DB: ${AIRFLOW_PG_DB}
+    volumes:
+      - airflow_meta_db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "airflow"]
+      interval: 5s
+      retries: 5
+
+  airflow-init:
+    <<: *airflow-common
+    entrypoint: /bin/bash
+    command:
+      - -c
+      - |
+        pip install --no-cache-dir -r /requirements.txt
+        airflow db migrate
+        airflow users create \
+          --username admin --password admin \
+          --firstname admin --lastname admin \
+          --role Admin --email admin@example.com || true
+
+  airflow-webserver:
+    <<: *airflow-common
+    command: webserver
+    ports:
+      - "8080:8080"
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
+
+  airflow-scheduler:
+    <<: *airflow-common
+    command: scheduler
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
+
+  streamlit:
+    build: ./dashboard
+    environment:
+      PG_HOST: ${PG_HOST}
+      PG_PORT: ${PG_PORT}
+      PG_DB: ${PG_DB}
+      PG_USER: ${PG_USER}
+      PG_PASSWORD: ${PG_PASSWORD}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "8501:8501"
+
+volumes:
+  airflow_meta_db:

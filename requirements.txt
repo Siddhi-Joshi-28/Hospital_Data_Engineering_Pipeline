@@ -1,0 +1,21 @@
+# Core
+pandas==2.2.2
+numpy==1.26.4
+Faker==25.2.0
+python-dotenv==1.0.1
+SQLAlchemy==2.0.30
+psycopg2-binary==2.9.9
+
+# Spark
+pyspark==3.5.1
+
+# Airflow (installed inside the airflow image via constraints — see docker-compose.yml)
+apache-airflow==2.9.1
+
+# Data quality / testing
+pytest==8.2.1
+great-expectations==0.18.16
+
+# Dashboard
+streamlit==1.35.0
+plotly==5.22.0
