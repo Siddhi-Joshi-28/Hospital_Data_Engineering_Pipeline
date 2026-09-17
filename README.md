@@ -254,4 +254,5 @@ After `load.py` finishes — refreshing your dashboards
 Power BI Desktop: click Refresh in the ribbon (it won't auto-update)
 Streamlit: it caches query results for 5 minutes (ttl=300 in the code) — either wait, or just refresh your browser tab and it'll re-query if the cache expired; to force it instantly, stop and restart `python -m streamlit run streamlit_app.py`
 
-You do not need to rerun `sql/PowerBISQL.sql` again unless you changed the view logic itself — those views just point at whatever is currently in `analytics.*`, so they automatically reflect fresh data.
+You do not need to rerun `sql/PowerBISQL.sql` again unless you changed the view logic itself — those views just point at whatever is currently in `analytics.*`, so they automatically reflect fresh data.#   H o s p i t a l _ D a t a _ E n g i n e e r i n g _ P i p e l i n e  
+ 
